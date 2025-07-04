@@ -59,6 +59,32 @@ export function DebugDashboard({
     }
   }
 
+  const handleAddUpstoxTestTick = () => {
+    const testUpstoxData = {
+      type: "live_feed",
+      feeds: {
+        "NSE_EQ|INE257A01026": {
+          ff: {
+            marketFF: {
+              ltpc: {
+                ltp: Math.random() * 1000 + 100,
+                ltq: Math.floor(Math.random() * 100),
+                ltt: Date.now(),
+                cp: Math.random() * 1000 + 100
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // This would need to be passed from the parent component
+    console.log("Test Upstox data:", JSON.stringify(testUpstoxData))
+    if (addDebugInfo) {
+      addDebugInfo("Generated test Upstox data - check console")
+    }
+  }
+
   const testDirectConnection = async () => {
     try {
       console.log("🧪 Testing direct fetch to endpoint...")
@@ -230,23 +256,27 @@ export function DebugDashboard({
         <CardContent className="flex gap-4 flex-wrap">
           <Button onClick={handleAddTestTick} variant="outline">
             <Play className="w-4 h-4 mr-2" />
-            Add Test Tick
+            Add Test Tick (Kite)
+          </Button>
+          <Button onClick={handleAddUpstoxTestTick} variant="outline">
+            <Play className="w-4 h-4 mr-2" />
+            Add Test Tick (Upstox)
           </Button>
           <Button onClick={testDirectConnection} variant="outline">
             <Bug className="w-4 h-4 mr-2" />
-            Test Direct Fetch
+            Test Direct Fetch (Kite)
           </Button>
           <Button onClick={testUpstoxDirectConnection} variant="outline">
             <Bug className="w-4 h-4 mr-2" />
-            Test Upstox Direct
+            Test Direct Fetch (Upstox)
           </Button>
           <Button onClick={() => window.open("https://ticks.rvinod.com/ticks", "_blank")} variant="outline">
             <Activity className="w-4 h-4 mr-2" />
-            Open SSE in New Tab
+            Open Kite SSE in New Tab
           </Button>
           <Button onClick={() => window.open("https://ticks.rvinod.com/upstox", "_blank")} variant="outline">
             <Activity className="w-4 h-4 mr-2" />
-            Open Upstox SSE
+            Open Upstox SSE in New Tab
           </Button>
           <Button onClick={checkDataAuthenticity} variant="outline">
             <Bug className="w-4 h-4 mr-2" />

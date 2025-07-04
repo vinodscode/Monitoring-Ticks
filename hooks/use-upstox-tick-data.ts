@@ -68,22 +68,22 @@ export function useUpstoxTickData() {
     console.log(`🔍 UPSTOX DEBUG: ${message}`)
   }, [])
 
-  const addAlert = (type: UpstoxAlert["type"], message: string, severity: UpstoxAlert["severity"] = "medium") => {
+  const addAlert = useCallback((type: UpstoxAlert["type"], message: string, severity: UpstoxAlert["severity"] = "medium") => {
     setAlerts((prev) => [
       { id: crypto.randomUUID(), type, message, severity, timestamp: Date.now() },
       ...prev.slice(0, MAX_ALERTS - 1),
     ])
     addDebugInfo(`Alert [${severity}]: ${message}`)
-  }
+  }, [addDebugInfo])
 
-  const scheduleFreeze = () => {
+  const scheduleFreeze = useCallback(() => {
     if (freezeTimer.current) clearTimeout(freezeTimer.current)
     freezeTimer.current = setTimeout(() => {
       setIsFrozen(true)
       setFreezingIncidents(prev => prev + 1)
       addAlert("freeze", "No Upstox data for 30 s", "high")
     }, FREEZE_TIMEOUT)
-  }
+  }, [addAlert])
 
   // Add test tick function for debugging
   const addTestTick = useCallback((testData: string) => {
@@ -133,6 +133,7 @@ export function useUpstoxTickData() {
 
   const connectToUpstox = useCallback(() => {
     if (esRef.current) {
+      addDebugInfo("Closing existing Upstox connection")
       esRef.current.close()
     }
 
@@ -144,21 +145,24 @@ export function useUpstoxTickData() {
       const es = new EventSource(FEED_URL)
       esRef.current = es
 
+      addDebugInfo(`Upstox EventSource created, readyState: ${es.readyState}`)
+
       const connectionTimeout = setTimeout(() => {
         if (es.readyState === EventSource.CONNECTING) {
           addDebugInfo("Upstox connection timeout - closing connection")
           es.close()
+          setConnectionStatus("error")
           addAlert("connection", "Upstox connection timeout", "high")
         }
       }, 15000)
 
       /* ----- open ----- */
-      es.onopen = () => {
+      es.onopen = (event) => {
         clearTimeout(connectionTimeout)
+        addDebugInfo("Upstox SSE connection opened successfully")
         setConnectionStatus("connected")
         connectionAttempts.current = 0
         addAlert("connection", "Upstox connected", "low")
-        addDebugInfo("Upstox SSE connection opened successfully")
         scheduleFreeze()
       }
 
@@ -174,7 +178,7 @@ export function useUpstoxTickData() {
 
         try {
           const payload = JSON.parse(e.data)
-          addDebugInfo(`Upstox received message type: ${payload?.type}`)
+          addDebugInfo(`Upstox received message type: ${payload?.type || 'unknown'}`)
 
           /* Upstox live_feed */
           if (payload?.type === "live_feed" && payload.feeds) {
@@ -213,26 +217,28 @@ export function useUpstoxTickData() {
               setTotalTicks((prev) => prev + newTicks.length)
               setLastTickTime(now)
               setIsFrozen(false)
-              addDebugInfo(`Processed ${newTicks.length} Upstox ticks`)
+              addDebugInfo(`✅ Processed ${newTicks.length} Upstox ticks`)
             }
+          } else {
+            addDebugInfo(`Upstox received non-live_feed message: ${JSON.stringify(payload).substring(0, 200)}`)
           }
         } catch (err) {
           addAlert("data", `Upstox parse error: ${err}`, "medium")
-          addDebugInfo(`Upstox parse error: ${err}`)
+          addDebugInfo(`❌ Upstox parse error: ${err}`)
         }
       }
 
       /* ----- error ----- */
-      es.onerror = () => {
+      es.onerror = (error) => {
         clearTimeout(connectionTimeout)
-        addDebugInfo(`Upstox SSE error occurred, readyState: ${es.readyState}`)
+        addDebugInfo(`❌ Upstox SSE error occurred, readyState: ${es.readyState}`)
         
         if (es.readyState === EventSource.CLOSED) {
+          addDebugInfo("Upstox connection closed, will attempt reconnect")
           setConnectionStatus("error")
-          addAlert("connection", "Upstox error – reconnecting", "medium")
-          es.close()
-
+          
           const delay = Math.min(5000 * Math.pow(2, connectionAttempts.current - 1), 30000)
+          addAlert("connection", `Upstox connection lost. Reconnecting in ${delay / 1000}s...`, "high")
           addDebugInfo(`Upstox reconnecting in ${delay / 1000}s...`)
 
           if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
@@ -240,21 +246,32 @@ export function useUpstoxTickData() {
         }
       }
     } catch (error) {
-      addDebugInfo(`Failed to create Upstox SSE connection: ${error}`)
+      addDebugInfo(`❌ Failed to create Upstox SSE connection: ${error}`)
       setConnectionStatus("error")
       addAlert("connection", `Upstox connection failed: ${error}`, "high")
     }
-  }, [addAlert, addDebugInfo])
+  }, [addAlert, addDebugInfo, scheduleFreeze])
 
   /* ---------- INIT (runs once) ---------- */
   useEffect(() => {
+    addDebugInfo("🚀 Initializing Upstox connection...")
     connectToUpstox()
 
     /* cleanup on unmount */
     return () => {
-      if (esRef.current) esRef.current.close()
-      if (freezeTimer.current) clearTimeout(freezeTimer.current)
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
+      addDebugInfo("🧹 Cleaning up Upstox connection...")
+      if (esRef.current) {
+        esRef.current.close()
+        esRef.current = null
+      }
+      if (freezeTimer.current) {
+        clearTimeout(freezeTimer.current)
+        freezeTimer.current = null
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
     }
   }, [connectToUpstox])
 
