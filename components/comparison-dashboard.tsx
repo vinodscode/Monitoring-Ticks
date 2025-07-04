@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -92,7 +92,7 @@ interface ComparisonData {
 export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, upstoxConnected }: ComparisonDashboardProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [lastRefresh, setLastRefresh] = useState(Date.now())
-  const [previousPrices, setPreviousPrices] = useState<Record<string, { kite: number | null, upstox: number | null }>>({})
+  const previousPricesRef = useRef<Record<string, { kite: number | null, upstox: number | null }>>({})
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
@@ -130,7 +130,7 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
       }
 
       // Calculate price changes
-      const prevPrices = previousPrices[pair.id] || { kite: null, upstox: null }
+      const prevPrices = previousPricesRef.current[pair.id] || { kite: null, upstox: null }
       const kiteChange = (kitePrice !== null && prevPrices.kite !== null) ? kitePrice - prevPrices.kite : 0
       const upstoxChange = (upstoxPrice !== null && prevPrices.upstox !== null) ? upstoxPrice - prevPrices.upstox : 0
 
@@ -150,7 +150,7 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
     })
 
     return data
-  }, [kiteTicks, upstoxTicks, refreshKey, previousPrices])
+  }, [kiteTicks, upstoxTicks, refreshKey])
 
   // Update previous prices for change calculation
   useEffect(() => {
@@ -161,7 +161,7 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
         upstox: data.upstoxPrice
       }
     })
-    setPreviousPrices(newPreviousPrices)
+    previousPricesRef.current = newPreviousPrices
   }, [comparisonData])
 
   const formatPrice = (price: number | null) => {
