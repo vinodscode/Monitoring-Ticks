@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Activity, TrendingUp, Wifi, Clock, Settings, Bell, History, Sliders, GitCompare } from "lucide-react"
+import { Activity, TrendingUp, Wifi, Clock, Settings, Bell, History, Sliders, GitCompare, CheckCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MarketDataGrid } from "@/components/market-data-grid"
@@ -9,6 +9,7 @@ import { UpstoxMarketDataGrid } from "@/components/upstox-market-data-grid"
 import { ComparisonDashboard } from "@/components/comparison-dashboard"
 import { DebugDashboard } from "@/components/debug-dashboard"
 import { AlertSettingsTab } from "@/components/alert-settings-tab"
+import { InstrumentVerificationPanel } from "@/components/instrument-verification-panel"
 import { useTickData } from "@/hooks/use-tick-data"
 import { InactivityAlertsLog } from "@/components/inactivity-alerts-log"
 import { useUpstoxTickData } from "@/hooks/use-upstox-tick-data"
@@ -276,6 +277,13 @@ function MarketDashboard() {
                 6
               </span>
             </TabsTrigger>
+            <TabsTrigger value="verification" className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Verification
+              <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-xs font-medium text-purple-600">
+                6
+              </span>
+            </TabsTrigger>
             <TabsTrigger value="alert-settings" className="flex items-center gap-2">
               <Sliders className="w-4 h-4" />
               Alert Settings
@@ -326,6 +334,13 @@ function MarketDashboard() {
               upstoxTicks={upstoxTicks}
               kiteConnected={isConnected}
               upstoxConnected={upstoxIsConnected}
+            />
+          </TabsContent>
+
+          <TabsContent value="verification">
+            <InstrumentVerificationPanel
+              kiteTicks={ticks}
+              upstoxTicks={upstoxTicks}
             />
           </TabsContent>
 
