@@ -14,7 +14,7 @@ import { InactivityAlertsLog } from "@/components/inactivity-alerts-log"
 import { useUpstoxTickData } from "@/hooks/use-upstox-tick-data"
 import { useInactivityAlerts } from "@/hooks/use-inactivity-alerts"
 
-export default function MarketDashboard() {
+function MarketDashboard() {
   const {
     ticks,
     isConnected,
@@ -372,3 +372,5 @@ export default function MarketDashboard() {
     </div>
   )
 }
+
+export default MarketDashboard
