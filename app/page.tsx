@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Activity, TrendingUp, Wifi, Clock, Settings, Bell, History, Sliders } from "lucide-react"
+import { Activity, TrendingUp, Wifi, Clock, Settings, Bell, History, Sliders, GitCompare } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MarketDataGrid } from "@/components/market-data-grid"
 import { UpstoxMarketDataGrid } from "@/components/upstox-market-data-grid"
+import { ComparisonDashboard } from "@/components/comparison-dashboard"
 import { DebugDashboard } from "@/components/debug-dashboard"
 import { AlertSettingsTab } from "@/components/alert-settings-tab"
 import { useTickData } from "@/hooks/use-tick-data"
@@ -268,6 +269,13 @@ export default function MarketDashboard() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="comparison" className="flex items-center gap-2">
+              <GitCompare className="w-4 h-4" />
+              Comparison
+              <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-600">
+                6
+              </span>
+            </TabsTrigger>
             <TabsTrigger value="alert-settings" className="flex items-center gap-2">
               <Sliders className="w-4 h-4" />
               Alert Settings
@@ -309,6 +317,15 @@ export default function MarketDashboard() {
               onConfigurationChange={(token, config) =>
                 upstoxUpdateConfiguration(Number.parseInt(token.replace(/[^0-9]/g, "")) || 0, config)
               } // Convert back to number
+            />
+          </TabsContent>
+
+          <TabsContent value="comparison">
+            <ComparisonDashboard
+              kiteTicks={ticks}
+              upstoxTicks={upstoxTicks}
+              kiteConnected={isConnected}
+              upstoxConnected={upstoxIsConnected}
             />
           </TabsContent>
 
