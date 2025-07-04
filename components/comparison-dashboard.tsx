@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from "lucide-react"
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Wifi, WifiOff, AlertTriangle } from "lucide-react"
 import type { TickData } from "@/hooks/use-tick-data"
 import type { UpstoxTickData } from "@/hooks/use-upstox-tick-data"
 
@@ -84,18 +84,22 @@ interface ComparisonData {
   percentageDifference: number | null
   kiteDelay: number
   upstoxDelay: number
+  kiteChange: number
+  upstoxChange: number
+  lastUpdate: number
 }
 
 export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, upstoxConnected }: ComparisonDashboardProps) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [lastRefresh, setLastRefresh] = useState(Date.now())
+  const [previousPrices, setPreviousPrices] = useState<Record<string, { kite: number | null, upstox: number | null }>>({})
 
-  // Auto-refresh every 5 seconds
+  // Auto-refresh every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setRefreshKey(prev => prev + 1)
       setLastRefresh(Date.now())
-    }, 5000)
+    }, 3000)
     return () => clearInterval(interval)
   }, [])
 
@@ -125,6 +129,11 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
         percentageDifference = upstoxPrice !== 0 ? (priceDifference / upstoxPrice) * 100 : 0
       }
 
+      // Calculate price changes
+      const prevPrices = previousPrices[pair.id] || { kite: null, upstox: null }
+      const kiteChange = (kitePrice !== null && prevPrices.kite !== null) ? kitePrice - prevPrices.kite : 0
+      const upstoxChange = (upstoxPrice !== null && prevPrices.upstox !== null) ? upstoxPrice - prevPrices.upstox : 0
+
       data[pair.id] = {
         kitePrice,
         upstoxPrice,
@@ -133,12 +142,27 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
         priceDifference,
         percentageDifference,
         kiteDelay: kiteData?.delay || 0,
-        upstoxDelay: upstoxData?.delay || 0
+        upstoxDelay: upstoxData?.delay || 0,
+        kiteChange,
+        upstoxChange,
+        lastUpdate: Math.max(kiteData?.receivedAt || 0, upstoxData?.receivedAt || 0)
       }
     })
 
     return data
-  }, [kiteTicks, upstoxTicks, refreshKey])
+  }, [kiteTicks, upstoxTicks, refreshKey, previousPrices])
+
+  // Update previous prices for change calculation
+  useEffect(() => {
+    const newPreviousPrices: Record<string, { kite: number | null, upstox: number | null }> = {}
+    Object.entries(comparisonData).forEach(([pairId, data]) => {
+      newPreviousPrices[pairId] = {
+        kite: data.kitePrice,
+        upstox: data.upstoxPrice
+      }
+    })
+    setPreviousPrices(newPreviousPrices)
+  }, [comparisonData])
 
   const formatPrice = (price: number | null) => {
     if (price === null) return "N/A"
@@ -168,19 +192,38 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
 
   const getDifferenceColor = (diff: number | null) => {
     if (diff === null) return "text-gray-500"
+    if (Math.abs(diff) < 0.01) return "text-gray-500"
     if (diff > 0) return "text-green-600"
     if (diff < 0) return "text-red-600"
     return "text-gray-500"
   }
 
   const getDifferenceIcon = (diff: number | null) => {
-    if (diff === null) return <Minus className="w-4 h-4" />
+    if (diff === null || Math.abs(diff) < 0.01) return <Minus className="w-4 h-4" />
     if (diff > 0) return <TrendingUp className="w-4 h-4" />
     if (diff < 0) return <TrendingDown className="w-4 h-4" />
     return <Minus className="w-4 h-4" />
   }
 
+  const getChangeColor = (change: number) => {
+    if (Math.abs(change) < 0.01) return "text-gray-500"
+    return change > 0 ? "text-green-600" : "text-red-600"
+  }
+
+  const getDataAge = (timestamp: number | null) => {
+    if (!timestamp) return null
+    const ageMs = Date.now() - timestamp
+    if (ageMs < 60000) return `${Math.floor(ageMs / 1000)}s ago`
+    if (ageMs < 3600000) return `${Math.floor(ageMs / 60000)}m ago`
+    return `${Math.floor(ageMs / 3600000)}h ago`
+  }
+
   const handleRefreshCard = (pairId: string) => {
+    setRefreshKey(prev => prev + 1)
+    setLastRefresh(Date.now())
+  }
+
+  const handleRefreshAll = () => {
     setRefreshKey(prev => prev + 1)
     setLastRefresh(Date.now())
   }
@@ -194,15 +237,15 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
           <p className="text-sm text-gray-500">Kite vs Upstox LTP comparison across different instruments</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {kiteConnected ? <Wifi className="w-4 h-4 text-green-600" /> : <WifiOff className="w-4 h-4 text-red-600" />}
               <span className="text-sm font-medium">Kite</span>
               <Badge variant={kiteConnected ? "default" : "destructive"} className="text-xs">
                 {kiteConnected ? "Connected" : "Disconnected"}
               </Badge>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               {upstoxConnected ? <Wifi className="w-4 h-4 text-green-600" /> : <WifiOff className="w-4 h-4 text-red-600" />}
               <span className="text-sm font-medium">Upstox</span>
               <Badge variant={upstoxConnected ? "default" : "destructive"} className="text-xs">
@@ -210,27 +253,51 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
               </Badge>
             </div>
           </div>
-          <div className="text-sm text-gray-500">
-            Last updated: {formatTime(lastRefresh)}
-          </div>
+          <Button onClick={handleRefreshAll} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh All
+          </Button>
         </div>
       </div>
+
+      {/* Connection Status Alert */}
+      {(!kiteConnected || !upstoxConnected) && (
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <AlertTriangle className="w-5 h-5 text-yellow-600" />
+          <div className="text-sm text-yellow-800">
+            <span className="font-medium">Connection Issue:</span> 
+            {!kiteConnected && !upstoxConnected && " Both Kite and Upstox feeds are disconnected."}
+            {!kiteConnected && upstoxConnected && " Kite feed is disconnected."}
+            {kiteConnected && !upstoxConnected && " Upstox feed is disconnected."}
+            {" "}Price comparisons may be incomplete.
+          </div>
+        </div>
+      )}
 
       {/* Comparison Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {INSTRUMENT_PAIRS.map(pair => {
           const data = comparisonData[pair.id]
           const hasData = data.kitePrice !== null || data.upstoxPrice !== null
+          const hasBothData = data.kitePrice !== null && data.upstoxPrice !== null
+          const isStale = data.lastUpdate > 0 && (Date.now() - data.lastUpdate) > 300000 // 5 minutes
           
           return (
-            <Card key={pair.id} className={`${!hasData ? 'opacity-60' : ''} hover:shadow-lg transition-shadow`}>
+            <Card key={pair.id} className={`${!hasData ? 'opacity-60' : ''} ${isStale ? 'border-orange-300' : ''} hover:shadow-lg transition-all duration-300`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">{pair.name}</CardTitle>
-                    <Badge variant="outline" className="text-xs mt-1">
-                      {pair.category}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs">
+                        {pair.category}
+                      </Badge>
+                      {isStale && (
+                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                          Stale Data
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <Button
                     variant="ghost"
@@ -250,6 +317,11 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
                     <div className="text-2xl font-bold">
                       ₹{formatPrice(data.kitePrice)}
                     </div>
+                    {data.kiteChange !== 0 && (
+                      <div className={`text-sm font-medium ${getChangeColor(data.kiteChange)}`}>
+                        {data.kiteChange > 0 ? "+" : ""}{data.kiteChange.toFixed(2)}
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500">
                       {formatTime(data.kitePriceTime)}
                     </div>
@@ -263,6 +335,11 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
                     <div className="text-2xl font-bold">
                       ₹{formatPrice(data.upstoxPrice)}
                     </div>
+                    {data.upstoxChange !== 0 && (
+                      <div className={`text-sm font-medium ${getChangeColor(data.upstoxChange)}`}>
+                        {data.upstoxChange > 0 ? "+" : ""}{data.upstoxChange.toFixed(2)}
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500">
                       {formatTime(data.upstoxPriceTime)}
                     </div>
@@ -296,6 +373,12 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
                       </span>
                     </div>
                   )}
+                  
+                  {hasBothData && Math.abs(data.priceDifference || 0) > 1 && (
+                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                      <span className="font-medium">Significant difference detected!</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Symbol Information */}
@@ -313,10 +396,16 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${data.kitePrice !== null ? 'bg-green-500' : 'bg-gray-300'}`} />
                     <span>Kite Data</span>
+                    {data.kitePriceTime && (
+                      <span className="text-gray-400">({getDataAge(data.kitePriceTime)})</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${data.upstoxPrice !== null ? 'bg-green-500' : 'bg-gray-300'}`} />
                     <span>Upstox Data</span>
+                    {data.upstoxPriceTime && (
+                      <span className="text-gray-400">({getDataAge(data.upstoxPriceTime)})</span>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -331,7 +420,7 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
           <CardTitle>Summary Statistics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {Object.values(comparisonData).filter(d => d.kitePrice !== null).length}
@@ -357,6 +446,12 @@ export function ComparisonDashboard({ kiteTicks, upstoxTicks, kiteConnected, ups
                 ).length}
               </div>
               <div className="text-sm text-gray-500">Price Differences</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-gray-500 mb-1">Last Update</div>
+              <div className="text-sm font-medium">
+                {formatTime(lastRefresh)}
+              </div>
             </div>
           </div>
         </CardContent>
